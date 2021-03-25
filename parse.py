@@ -4,6 +4,7 @@ from collections import defaultdict
 import json
 
 import pandas as pd
+import geopandas as gpd
 import yaml
 
 from util import simplify,missing,ascii_to_int
@@ -98,13 +99,18 @@ def fixYesNo(data,codebook):
             try:
                 rev = {v:k for k,v in mappings.items()}
                 assert mappings["1"] == "Yes" 
-                data[data[varname] == rev["No"]] = 2
+                data[varname][data[varname] == int(rev["No"])] = 2
+                del(mappings[rev["No"]])
                 mappings["2"] = "No"
             except KeyError:
                 pass
             else:
                 ynvars.append(varname)
     return data,codebook
+
+def packGeodata(data):
+    data["geostring"] = data.geometry.apply(str)
+    return data
 
 if __name__ == "__main__":
     data = pd.read_csv("raw/maps.csv",encoding="latin1")
@@ -119,6 +125,12 @@ if __name__ == "__main__":
     variables = set(cb.keys()).union(KEEP)
     variables = variables.intersection(set(data.columns))
     data = data[variables]
+
+    geodata = gpd.read_file("raw/pdet.geojson")
+    geodata.columns = [cl.lower() for cl in geodata]
+    geodata = packGeodata(geodata)
+    geodata = geodata[["pdetname","codane2","pdet","departamen","municipio","geostring"]]
+    geodata.to_csv("out/pdet.csv",index=False)
 
     with open("out/codebook.json","w") as f:
         json.dump(cb,f)
